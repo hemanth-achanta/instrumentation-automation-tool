@@ -1,0 +1,8 @@
+{
+  "allowed_events": [
+    "page_load",
+    "property_load",
+    "element_clicked",
+    "i_element_viewed"
+  ]
+}

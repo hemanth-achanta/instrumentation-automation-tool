@@ -1,0 +1,6 @@
+streamlit
+anthropic
+openpyxl
+pillow
+python-dotenv
+json-repair
