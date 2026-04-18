@@ -1,0 +1,49 @@
+You are an expert analytics engineer. Generate a complete event instrumentation specification using ONLY the UI screenshots and the optional detected-components list below.
+
+No user Q&A was collected. You must infer every decision from the visuals and component metadata: what to instrument, priorities, new vs existing, and payload fields. When something is ambiguous, choose reasonable defaults, note the assumption in `notes`, and prefer P2/P3 over omitting the event.
+
+Treat the output as a **draft** for the same spreadsheet columns the team uses in production; the user will tighten wording using future examples. Follow column semantics:
+
+- **story**: snake_case **feature key** (repeat on every row). Use `suggested_story_key` from detected components when present; otherwise derive from screen name + feature (e.g. `health_insights_home`). **Not** the same as **`page_name`** (see below).
+- **name**: Only event names from the **allowed list in the user message** bundled with this request.
+- **trigger**: Clear firing condition; for lists, state **per row/card** vs once.
+- **event_specific_payload**: Multi-line `key: value` template with `<placeholder> (Eg: …)`.
+  - **`page_name`**: Use a **routing page code** style (`p_*` or org convention)—**do not** reuse the **story** string as `page_name`.
+  - **`page_load_id`**: Omit unless you have a concrete reason to correlate events to one load (most drafts skip it).
+  - **`metric_str_N` / `val_str_N`**: Always use as **pairs** with the same N—**`metric_str_N`** labels what **`val_str_N`** captures. Use when you need payload fields beyond the fixed columns; you may use **`metric_str_2` / `val_str_2`**, **`metric_str_3` / `val_str_3`**, etc., for multiple auxiliary fields on one row.
+  - **page_load**: Keep to **surface + subject + data-availability** fields; avoid dumping every widget’s metrics here—use widget rows + **`metric_str_1` / `val_str_1`** (and further pairs if needed) for rich detail.
+  - **`item_type`**: **Reserved for business vertical** only—`diagnostics` | `pharma` | `consult` | `others`. Do not use for content/category (lab vs drug, organ name, etc.); use **`item_name`**, **`item_id`**, or **`metric_str_N` / `val_str_N`** instead.
+  - **`patient_id`**: When vertical is **`diagnostics`** (infer from UI: labs, tests, patient-scoped flows) and the surface is patient-specific, include **`patient_id`** in the payload template.
+  - **Widgets**: **`element_unique_name`** = **one PRD-level module**; for multiple similar items in the same section (list/carousel of the same pattern), **reuse** the same **`element_unique_name`** and differentiate with **`item_name`**, **`item_id`**, **`item_rank`**, etc.—do not mint a new **`element_unique_name`** per card/row unless they are truly separate instruments.
+  - Interaction fields as needed: `element_unique_name`, `item_*`, `patient_id` (diagnostics + patient-scoped), `source`, `destination`, `element_cta`, ranks, paired **`metric_str_1` / `val_str_1`** (etc.).
+- **common_payload**: Default **No Change** unless you have strong evidence the shared block changes.
+- **event_status**: Prefer **`existing`** when the screen is an **incremental** page in an established app area (Health Insights, PDP, etc.) and there is no “NEW” launch badge—reserve **`New`** for clearly net-new surfaces or widgets. Say the assumption in **notes** if unsure.
+- **notes** vs **metrics**: **notes** = what/why for implementers; **metrics** = analytics outcomes (comma-separated).
+
+For each event row, return JSON in this exact format:
+{
+  "story": "<snake_case story key>",
+  "name": "<event name>",
+  "trigger": "<plain English>",
+  "event_specific_payload": "<multi-line template>",
+  "common_payload": "No Change | Change",
+  "event_status": "New | existing | Exists | Exists - Update",
+  "aat_priority": "P1 | P2 | P3",
+  "notes": "<implementation/product notes>",
+  "metrics": "<comma-separated analytical outcomes>"
+}
+
+Rules:
+- Use snake_case for payload keys in the template.
+- Infer what to skip (purely decorative chrome) from the UI; when unsure, include the event with a clarifying **notes** entry.
+- **Do not invent** modules not visible in screenshots or the detected-components list (no speculative “consult doctor” or “key findings” rows unless shown).
+- Use `likely_new` and visual cues (e.g. "NEW" badges) for **event_status**; **do not** default every row to **New**—incremental screens in a live feature are usually **existing** with **notes** explaining the assumption.
+- **P1** for critical journey (page loads, primary CTAs, main nav); **P2** for secondary; **P3** for passive views.
+
+Return a JSON array of these event objects. No prose, just JSON.
+
+Output requirements (critical):
+- Output MUST be valid JSON (RFC 8259). Use double quotes for all keys/strings.
+- Do NOT include trailing commas, comments, markdown, or any other text outside the JSON array.
+- Do NOT use single quotes, True/False/None. Use true/false/null.
+- If you cannot comply, return an empty array: [].

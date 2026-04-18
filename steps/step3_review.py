@@ -16,7 +16,7 @@ EVENT_NAME_OPTIONS = [
     "l_event",
 ]
 COMMON_PAYLOAD_OPTIONS = ["Change", "No Change"]
-EVENT_STATUS_OPTIONS = ["New", "Exists", "Exists - Update"]
+EVENT_STATUS_OPTIONS = ["New", "existing", "Exists", "Exists - Update"]
 PRIORITY_OPTIONS = ["P1", "P2", "P3"]
 
 
@@ -31,6 +31,7 @@ def _generate_draft():
                 dynamic_questions=st.session_state.dynamic_questions,
                 page_name=st.session_state.page_name,
                 prd_text=st.session_state.get("prd_text"),
+                no_question_mode=st.session_state.get("no_question_mode", False),
             )
             st.session_state.final_rows = rows
             st.session_state.instrumentation_generated = True
@@ -45,8 +46,11 @@ def _generate_draft():
 def _render_summary(rows: list[dict]):
     """Show summary bar above the table."""
     total = len(rows)
+    def _is_exists(status: str) -> bool:
+        return status in ("Exists", "existing")
+
     new_count = sum(1 for r in rows if r.get("event_status") == "New")
-    exists_count = sum(1 for r in rows if r.get("event_status") == "Exists")
+    exists_count = sum(1 for r in rows if _is_exists(r.get("event_status")))
     update_count = sum(1 for r in rows if r.get("event_status") == "Exists - Update")
     p1 = sum(1 for r in rows if r.get("aat_priority") == "P1")
     p2 = sum(1 for r in rows if r.get("aat_priority") == "P2")
@@ -167,6 +171,7 @@ def render():
                     page_name=st.session_state.page_name,
                     prd_text=st.session_state.get("prd_text"),
                     regen_comment=st.session_state.get("regen_comment"),
+                    no_question_mode=st.session_state.get("no_question_mode", False),
                 )
                 st.session_state.final_rows = rows
                 st.session_state.instrumentation_generated = True
@@ -179,7 +184,12 @@ def render():
     st.divider()
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("← Back to Q&A", use_container_width=True):
+        back_label = (
+            "← Back to Analysis"
+            if st.session_state.get("no_question_mode")
+            else "← Back to Q&A"
+        )
+        if st.button(back_label, use_container_width=True):
             st.session_state.step = 2
             st.rerun()
     with col2:

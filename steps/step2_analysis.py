@@ -65,6 +65,7 @@ def _render_analysis_results():
         df = pd.DataFrame(components)
         display_cols = [
             "screen_label",
+            "suggested_story_key",
             "component_name",
             "component_type",
             "suggested_element_unique_name",
@@ -169,18 +170,26 @@ def render():
         if not _run_analysis():
             return
 
-    # Generate questions if not done
-    if not st.session_state.get("questions_generated"):
-        if not _run_question_generation():
-            return
+    # Generate questions if not done (skipped entirely in no question mode)
+    if not st.session_state.get("no_question_mode"):
+        if not st.session_state.get("questions_generated"):
+            if not _run_question_generation():
+                return
 
     # Show results
     _render_analysis_results()
 
     st.divider()
 
-    # Sub-phase B: Q&A
-    all_answered = _render_qa_form()
+    # Sub-phase B: Q&A (skipped in no question mode)
+    if st.session_state.get("no_question_mode"):
+        st.info(
+            "**No question mode** — Q&A is skipped. Instrumentation is inferred directly from "
+            "your screenshots and the detected components on the next step."
+        )
+        all_answered = True
+    else:
+        all_answered = _render_qa_form()
 
     # Navigation
     st.divider()

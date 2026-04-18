@@ -12,6 +12,15 @@ def render():
         "Upload Figma screenshots and describe the user flow to auto-generate analytics instrumentation."
     )
 
+    st.checkbox(
+        "No question mode (skip Q&A; generate instrumentation directly from screenshots)",
+        help=(
+            "Runs visual analysis, then skips all questions and drafts events from the images "
+            "and detected components. Good for batch runs or training pipelines."
+        ),
+        key="no_question_mode",
+    )
+
     # --- Multi-file uploader ---
     uploaded_files = st.file_uploader(
         "Upload Figma Screenshots (one per screen/state)",
@@ -157,6 +166,13 @@ def render():
 
     st.divider()
     if st.button("Next → AI Analysis", disabled=not can_proceed, type="primary", use_container_width=True):
+        if st.session_state.get("no_question_mode"):
+            st.session_state.dynamic_questions = []
+            st.session_state.qa_answers = {}
+            st.session_state.questions_generated = True
+        else:
+            st.session_state.questions_generated = False
+        st.session_state.instrumentation_generated = False
         st.session_state.step = 2
         st.rerun()
 

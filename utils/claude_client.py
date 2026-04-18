@@ -10,12 +10,15 @@ If not present, it falls back to the repo-level `api_key` file:
 
 from __future__ import annotations
 
+import ast
 import json
+import logging
 import os
 import re
-import ast
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -25,9 +28,43 @@ from utils.events_config import (
     get_allowed_attributes,
     get_compact_schema_summary,
 )
+from utils.prompts import (
+    ANALYZE_SYSTEM_PROMPT,
+    ANALYZE_SYSTEM_PROMPT_COMPACT,
+    QUESTIONS_SYSTEM_PROMPT,
+    INSTRUMENTATION_SYSTEM_PROMPT,
+    INSTRUMENTATION_SYSTEM_PROMPT_COMPACT,
+    INSTRUMENTATION_SYSTEM_PROMPT_NO_QUESTION,
+    INSTRUMENTATION_SYSTEM_PROMPT_NO_QUESTION_COMPACT,
+)
 
 
-MODEL = "claude-opus-4-5"
+MODEL = "claude-sonnet-4-6"
+# Optional: set to a smaller/faster model for JSON repair-only calls (same key).
+REPAIR_MODEL = os.getenv("ANTHROPIC_REPAIR_MODEL", MODEL)
+_MAX_JSON_REPAIR_CHARS = 200_000
+
+_JSON_REPAIR_SYSTEM = """You fix malformed model outputs so they become valid JSON (RFC 8259).
+Rules:
+- Output ONLY a single JSON value (usually a JSON array). No markdown fences, no commentary, no keys outside the data.
+- Use double quotes for all keys and string values. Use true/false/null, not Python tokens.
+- Remove trailing commas; do not include comments.
+- If the input is too corrupted to recover meaningfully, output [] (empty array)."""
+
+_INSTRUMENTATION_REPAIR_HINT = (
+    "a JSON array of event specification objects. Each object uses string keys: "
+    "story, name, trigger, event_specific_payload, common_payload, event_status, "
+    "aat_priority, notes, metrics."
+)
+_ANALYZE_REPAIR_HINT = (
+    "a JSON array of component objects with string keys including: screen_label, "
+    "component_name, suggested_story_key, component_type, suggested_element_unique_name, "
+    "likely_new, suggested_events, notes."
+)
+_QUESTIONS_REPAIR_HINT = (
+    "a JSON array of question objects with string keys: question_id, question, type, "
+    "options, component_ref, why."
+)
 
 load_dotenv()
 
@@ -122,6 +159,59 @@ def _normalize_json_like(text: str) -> str:
     return out
 
 
+def _llm_repair_json_text(
+    client: Anthropic,
+    broken_text: str,
+    parse_error: str,
+    expected_shape: str,
+) -> str:
+    """
+    Second-stage recovery when heuristics + json_repair cannot parse model output.
+    Uses a cheap follow-up call that only fixes syntax (no vision).
+    """
+    snippet = broken_text
+    if len(snippet) > _MAX_JSON_REPAIR_CHARS:
+        snippet = (
+            snippet[: _MAX_JSON_REPAIR_CHARS]
+            + "\n\n[... truncated for repair request; output must still be complete valid JSON ...]"
+        )
+    user_msg = (
+        f"The text below was supposed to be {expected_shape}\n\n"
+        f"Python json.loads error:\n{parse_error}\n\n"
+        "Fix the text into strictly valid JSON. Output nothing else.\n\n"
+        "---\n"
+        f"{snippet}\n"
+        "---"
+    )
+    msg = client.messages.create(
+        model=REPAIR_MODEL,
+        max_tokens=8192,
+        temperature=0,
+        system=_JSON_REPAIR_SYSTEM,
+        messages=[{"role": "user", "content": user_msg}],
+    )
+    return msg.content[0].text if msg.content else "[]"
+
+
+def _parse_json_with_llm_repair(
+    client: Anthropic,
+    broken_text: str,
+    parse_error: Exception,
+    expected_shape: str,
+) -> Any:
+    logger.warning("JSON parse failed; attempting LLM repair: %s", parse_error)
+    repaired = _llm_repair_json_text(client, broken_text, str(parse_error), expected_shape)
+    _maybe_store_last_raw(repaired)
+    try:
+        return _parse_json_response(repaired)
+    except Exception as second_err:
+        raise RuntimeError(
+            "Could not parse model output as JSON, even after an automatic repair pass. "
+            "Check logs and `last_model_raw` for the last response. "
+            f"Repair-stage error: {second_err}"
+        ) from second_err
+
+
 def _extract_first_json(text: str) -> str | None:
     """
     Extract the first balanced JSON array/object substring from text.
@@ -200,43 +290,6 @@ def _build_image_content(images: list[dict]) -> list[dict]:
     return content
 
 
-ANALYZE_SYSTEM_PROMPT = """You are an expert mobile analytics engineer specializing in event instrumentation for health-tech apps.
-Your job is to analyze Figma design screenshots and identify every UI component that requires analytics tracking.
-
-For each screenshot, identify:
-1. All interactive UI components (buttons, cards, banners, carousels, navigation items, tabs, toggles, search bars, bottom sheets, CTAs)
-2. All content-rendering components (widgets that load data, banners that display offers, lists/carousels of items)
-3. Page-level events (page loads, page views)
-4. Any components that clearly appear NEW (tagged "NEW LAUNCH", "BETA", visually distinct) vs likely existing
-
-For each component you identify, output structured JSON only (no prose).
-Return a JSON array where each object has:
-{
-  "screen_label": "<which screenshot this is from>",
-  "component_name": "<human readable name>",
-  "component_type": "page_load | banner | card_list | carousel | cta_button | search | navigation | sticky_element | bottomsheet | widget",
-  "suggested_element_unique_name": "<snake_case identifier e.g. hp_doctor_consult_banner>",
-  "likely_new": true/false,
-  "suggested_events": ["property_load", "i_element_viewed", "element_clicked"],
-  "notes": "<any important observations about this component>"
-}
-
-Output requirements (critical):
-- Output MUST be valid JSON (RFC 8259). Use double quotes for all keys/strings.
-- Do NOT include trailing commas, comments, or any other text outside the JSON array.
-- Do NOT use single quotes, True/False/None. Use true/false/null.
-- Keep strings simple; if you need newlines in \"notes\", use \\n.
-- If you cannot comply, return an empty JSON array: []"""
-
-ANALYZE_SYSTEM_PROMPT_COMPACT = ANALYZE_SYSTEM_PROMPT + """
-
-Compact mode (very important to avoid truncation):
-- Return AT MOST 35 components total across all screenshots.
-- Prioritize: page_load, primary CTAs, navigation, banners, forms/inputs, key list/carousel widgets.
-- If multiple similar inputs exist, group them into one component (e.g., \"Patient Details Form\" instead of each field).
-- Keep \"notes\" under 120 characters."""
-
-
 def analyze_screenshots(
     images: list[dict],
     flow_description: str,
@@ -274,13 +327,18 @@ def analyze_screenshots(
     _maybe_store_last_raw(raw)
     try:
         return _parse_json_response(raw)
-    except Exception:
+    except Exception as e:
         # If we likely got truncated / unbalanced output, retry with compact prompt.
         if _looks_truncated(raw):
             raw2 = _call(ANALYZE_SYSTEM_PROMPT_COMPACT, max_tokens=4096)
             _maybe_store_last_raw(raw2)
-            return _parse_json_response(raw2)
-        raise
+            try:
+                return _parse_json_response(raw2)
+            except Exception as e2:
+                return _parse_json_with_llm_repair(
+                    client, raw2, e2, _ANALYZE_REPAIR_HINT
+                )
+        return _parse_json_with_llm_repair(client, raw, e, _ANALYZE_REPAIR_HINT)
 
 
 def _looks_truncated(text: str) -> bool:
@@ -301,35 +359,6 @@ def _looks_truncated(text: str) -> bool:
     return False
 
 
-QUESTIONS_SYSTEM_PROMPT = """You are helping a product analyst define analytics instrumentation. Based on the UI components detected from Figma screenshots, generate a targeted Q&A to clarify what needs to be instrumented and how.
-
-Generate between 5-10 questions. Each question should be specific to the components detected — not generic.
-Focus on:
-- Confirming which components are truly new vs existing (to avoid redundant instrumentation)
-- Understanding business-critical actions that MUST be tracked
-- Clarifying payload details that can't be inferred from visuals alone (e.g. is a price dynamic? is a banner configurable via CMS?)
-- Identifying edge cases (empty states, error states, loading states that need events)
-- Understanding the page hierarchy (is this a sub-page, a bottom sheet, or a full page?)
-
-Return JSON array only:
-[
-  {
-    "question_id": "q1",
-    "question": "<the question text>",
-    "type": "multiselect | single_select | text | yes_no",
-    "options": ["option1", "option2"] or null if type is text,
-    "component_ref": "<which component_name this question relates to, or 'general'>",
-    "why": "<one sentence on why this matters for instrumentation>"
-  }
-]
-
-Output requirements (critical):
-- Output MUST be valid JSON (RFC 8259). Use double quotes for all keys/strings.
-- Do NOT include trailing commas, comments, markdown, or any other text outside the JSON array.
-- Do NOT use single quotes, True/False/None. Use true/false/null.
-- If you cannot comply, return []"""
-
-
 def generate_questions(detected_components: list[dict]) -> list[dict]:
     client = _get_client()
 
@@ -348,7 +377,12 @@ def generate_questions(detected_components: list[dict]) -> list[dict]:
 
     raw = message.content[0].text if message.content else ""
     _maybe_store_last_raw(raw)
-    questions = _parse_json_response(raw)
+    try:
+        questions = _parse_json_response(raw)
+    except Exception as e:
+        questions = _parse_json_with_llm_repair(
+            client, raw, e, _QUESTIONS_REPAIR_HINT
+        )
 
     component_names = [c.get("component_name", "Unknown") for c in detected_components]
     _ensure_required_questions(questions, component_names)
@@ -406,57 +440,6 @@ def _ensure_required_questions(questions: list[dict], component_names: list[str]
             questions.append(rq)
 
 
-INSTRUMENTATION_SYSTEM_PROMPT = """You are an expert analytics engineer. Generate a complete event instrumentation specification based on the detected UI components and the user's Q&A answers.
-
-For each event row, return JSON in this exact format:
-{
-  "story": "<UI section name, e.g. 'Doctor Consult Banner'>",
-  "name": "<event name, e.g. 'property_load', 'element_clicked', 'i_element_viewed', 'page_load'>",
-  "trigger": "<plain English description of when this fires>",
-  "event_specific_payload": "<multi-line string of key: value pairs with inline examples and angle-bracket descriptions>",
-  "common_payload": "<'Change' if common payload needs updating, 'No Change' if not>",
-  "event_status": "<'New' if new event, 'Exists' if existing, 'Exists - Update' if existing but needs changes>",
-  "aat_priority": "<P1 / P2 / P3>",
-  "notes": "<any important notes for the engineer>",
-  "metrics": "<what metric this event enables>"
-}
-
-Rules:
-- Use snake_case for all payload keys
-- event_specific_payload should follow this style:
-  element_unique_name: hp_doctor_consult_banner
-  item_type: services
-  source: <page containing the widget> (Eg: p_home)
-  destination: <destination page on click> (Eg: p_doctor_consult)
-  price: <discounted price shown> (Eg: 199)
-  element_cta: book_now/banner
-- For carousels/lists: always include item_rank, num_of_items, element_scroll_type, widget_vertical_rank
-- For banners: always include property_name or element_unique_name, item_name, item_type, widget_vertical_rank
-- For page loads: always include page_name, source_page_name, and boolean flags for all major widgets (has_X: 0/1)
-- Only include events for components NOT in the "should not be instrumented" list from Q&A
-- For components marked as "already instrumented, no change" — include a row with event_status = "Exists" and note "No changes needed"
-- Mark P1 for anything on the critical user journey (search, primary CTAs, page loads, new feature banners)
-- Mark P2 for supporting elements (secondary cards, navigation)
-- Mark P3 for edge cases and passive views
-
-Return a JSON array of these event objects. No prose, just JSON.
-
-Output requirements (critical):
-- Output MUST be valid JSON (RFC 8259). Use double quotes for all keys/strings.
-- Do NOT include trailing commas, comments, markdown, or any other text outside the JSON array.
-- Do NOT use single quotes, True/False/None. Use true/false/null.
-- If you cannot comply, return an empty array: []."""
-
-
-INSTRUMENTATION_SYSTEM_PROMPT_COMPACT = INSTRUMENTATION_SYSTEM_PROMPT + """
-
-Compact mode (to avoid truncation):
-- Generate AT MOST 40 events total.
-- Prioritize: page_load, primary CTAs, navigation, critical widgets (forms, carousels/lists, banners).
-- For secondary or repetitive elements, group them into a single event row with generic names.
-- Keep `trigger`, `event_specific_payload`, and `notes` as concise as possible while remaining clear."""
-
-
 def generate_instrumentation(
     images: list[dict],
     detected_components: list[dict],
@@ -465,15 +448,22 @@ def generate_instrumentation(
     page_name: str,
     prd_text: str | None = None,
     regen_comment: str | None = None,
+    no_question_mode: bool = False,
 ) -> list[dict]:
     client = _get_client()
 
-    qa_summary_lines: list[str] = []
-    for q in dynamic_questions:
-        qid = q.get("question_id")
-        answer = qa_answers.get(qid, "Not answered")
-        qa_summary_lines.append(f"Q: {q.get('question','')}\nA: {answer}")
-    qa_summary = "\n\n".join(qa_summary_lines)
+    if no_question_mode:
+        qa_summary = (
+            "(No interactive Q&A. Infer all instrumentation decisions from screenshots "
+            "and the detected-components list.)"
+        )
+    else:
+        qa_summary_lines: list[str] = []
+        for q in dynamic_questions:
+            qid = q.get("question_id")
+            answer = qa_answers.get(qid, "Not answered")
+            qa_summary_lines.append(f"Q: {q.get('question','')}\nA: {answer}")
+        qa_summary = "\n\n".join(qa_summary_lines)
 
     allowed_events = get_allowed_event_names()
     schema_summary = get_compact_schema_summary()
@@ -502,6 +492,11 @@ def generate_instrumentation(
             "(use this to revise the events accordingly):\n"
             + regen_comment
         )
+    if no_question_mode and not detected_components:
+        meta_text += (
+            "\n\nNote: No separate component-detection step was run; the list above may be empty. "
+            "Derive all events directly from the screenshots."
+        )
     user_content.append({"type": "text", "text": meta_text})
 
     def _call(system_prompt: str, max_tokens: int) -> str:
@@ -514,20 +509,38 @@ def generate_instrumentation(
         )
         return msg.content[0].text if msg.content else ""
 
+    primary_prompt = (
+        INSTRUMENTATION_SYSTEM_PROMPT_NO_QUESTION
+        if no_question_mode
+        else INSTRUMENTATION_SYSTEM_PROMPT
+    )
+    compact_prompt = (
+        INSTRUMENTATION_SYSTEM_PROMPT_NO_QUESTION_COMPACT
+        if no_question_mode
+        else INSTRUMENTATION_SYSTEM_PROMPT_COMPACT
+    )
+
     # First attempt: generous token budget
-    raw = _call(INSTRUMENTATION_SYSTEM_PROMPT, max_tokens=8192)
+    raw = _call(primary_prompt, max_tokens=8192)
     _maybe_store_last_raw(raw)
     try:
         rows = _parse_json_response(raw)
-        return _post_process_events(rows)
-    except Exception:
+    except Exception as e:
         # Auto-retry with compact mode if output looks truncated/imbalanced
         if _looks_truncated(raw):
-            raw2 = _call(INSTRUMENTATION_SYSTEM_PROMPT_COMPACT, max_tokens=4096)
+            raw2 = _call(compact_prompt, max_tokens=4096)
             _maybe_store_last_raw(raw2)
-            rows2 = _parse_json_response(raw2)
-            return _post_process_events(rows2)
-        raise
+            try:
+                rows = _parse_json_response(raw2)
+            except Exception as e2:
+                rows = _parse_json_with_llm_repair(
+                    client, raw2, e2, _INSTRUMENTATION_REPAIR_HINT
+                )
+        else:
+            rows = _parse_json_with_llm_repair(
+                client, raw, e, _INSTRUMENTATION_REPAIR_HINT
+            )
+    return _post_process_events(rows)
 
 
 def _post_process_events(rows: list[dict]) -> list[dict]:

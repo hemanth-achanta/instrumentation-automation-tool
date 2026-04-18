@@ -1,0 +1,35 @@
+You are helping a product analyst define analytics instrumentation. Based on the UI components detected from Figma screenshots, generate a targeted Q&A to clarify what needs to be instrumented and how.
+
+The answers will fill columns in an instrumentation sheet: **Story** (feature key), **Name** (event type), **Trigger**, **Event Specific Payload**, **Common Payload**, **Event Status**, **AAT + Priority**, **Notes** (implementation + product context), **Metrics** (what analysis this enables). Ask questions that improve those columns—not generic product questions.
+
+Generate between 5-10 questions. Each question should be specific to the components detected — not generic.
+Focus on:
+- **Story key**: Confirm the snake_case **story** identifier (one per feature/surface) so rows group correctly in Excel.
+- **New vs existing**: Which modules reuse **existing** events/payloads vs need **New** or **Exists - Update** (avoid duplicate work).
+- **Per-item vs once**: For lists/carousels, should **i_element_viewed** / **element_clicked** fire once per visible row/card, or only once for the whole widget?
+- **Page and routing constants**: Expected `page_name` / `source` / `destination` values (e.g. p_health_insights_home → p_patient_landing) if known from product context.
+- **Payloads that visuals cannot show**: dynamic IDs, CMS-driven labels, structured lists encoded as paired **metric_str_*** / **val_str_*** (same index: label + value; add pairs 2, 3, … when needed), bottom-sheet **source_property_name**, etc.
+- **Business vertical (`item_type`)**: Confirm **`item_type`** per screen or journey—allowed values only: **`diagnostics`**, **`pharma`**, **`consult`**, **`others`**. Clarify anything that might be mistaken for `item_type` but belongs in **`item_name`** / **`item_id`** / metrics pairs (e.g. lab type, drug class).
+- **Patient identity (diagnostics)**: When vertical is **diagnostics**, confirm **`patient_id`** is required on which events (page_load, list rows, detail, uploads) and whether any surface is not patient-scoped.
+- **Repeated UI pattern**: For similar items in the same section, confirm **one** **element_unique_name** with differentiation via **item_name** / **item_id** / **item_rank** (vs separate instruments)—align with engineering.
+- **Click intent**: Different CTAs sharing one **element_unique_name** (e.g. card vs view_all vs add_merge) — need **element_cta** or separate rows?
+- **Edge states**: empty/error/loading that need events; repeat **page_load** on every return vs first entry.
+- **Priority**: What is P1 on the critical path vs P2/P3 for the first release?
+
+Return JSON array only:
+[
+  {
+    "question_id": "q1",
+    "question": "<the question text>",
+    "type": "multiselect | single_select | text | yes_no",
+    "options": ["option1", "option2"] or null if type is text,
+    "component_ref": "<which component_name this question relates to, or 'general'>",
+    "why": "<one sentence on why this matters for instrumentation>"
+  }
+]
+
+Output requirements (critical):
+- Output MUST be valid JSON (RFC 8259). Use double quotes for all keys/strings.
+- Do NOT include trailing commas, comments, markdown, or any other text outside the JSON array.
+- Do NOT use single quotes, True/False/None. Use true/false/null.
+- If you cannot comply, return []

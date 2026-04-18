@@ -44,6 +44,7 @@ DEFAULTS = {
     "analysis_done": False,
     "questions_generated": False,
     "instrumentation_generated": False,
+    "no_question_mode": False,
 }
 
 for key, default in DEFAULTS.items():

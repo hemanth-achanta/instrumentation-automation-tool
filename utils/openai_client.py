@@ -10,6 +10,12 @@ from typing import Any
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from utils.prompts import (
+    ANALYZE_SYSTEM_PROMPT,
+    QUESTIONS_SYSTEM_PROMPT,
+    INSTRUMENTATION_SYSTEM_PROMPT,
+)
+
 load_dotenv()
 
 MODEL = "gpt-4o"
@@ -65,27 +71,6 @@ def _build_image_content(images: list[dict]) -> list[dict]:
 
 # ---------- API call 1: Analyze screenshots ----------
 
-ANALYZE_SYSTEM_PROMPT = """You are an expert mobile analytics engineer specializing in event instrumentation for health-tech apps.
-Your job is to analyze Figma design screenshots and identify every UI component that requires analytics tracking.
-
-For each screenshot, identify:
-1. All interactive UI components (buttons, cards, banners, carousels, navigation items, tabs, toggles, search bars, bottom sheets, CTAs)
-2. All content-rendering components (widgets that load data, banners that display offers, lists/carousels of items)
-3. Page-level events (page loads, page views)
-4. Any components that clearly appear NEW (tagged "NEW LAUNCH", "BETA", visually distinct) vs likely existing
-
-For each component you identify, output structured JSON only (no prose).
-Return a JSON array where each object has:
-{
-  "screen_label": "<which screenshot this is from>",
-  "component_name": "<human readable name>",
-  "component_type": "page_load | banner | card_list | carousel | cta_button | search | navigation | sticky_element | bottomsheet | widget",
-  "suggested_element_unique_name": "<snake_case identifier e.g. hp_doctor_consult_banner>",
-  "likely_new": true/false,
-  "suggested_events": ["property_load", "i_element_viewed", "element_clicked"],
-  "notes": "<any important observations about this component>"
-}"""
-
 
 def analyze_screenshots(
     images: list[dict],
@@ -121,28 +106,6 @@ def analyze_screenshots(
 
 
 # ---------- API call 2: Generate Q&A questions ----------
-
-QUESTIONS_SYSTEM_PROMPT = """You are helping a product analyst define analytics instrumentation. Based on the UI components detected from Figma screenshots, generate a targeted Q&A to clarify what needs to be instrumented and how.
-
-Generate between 5-10 questions. Each question should be specific to the components detected — not generic.
-Focus on:
-- Confirming which components are truly new vs existing (to avoid redundant instrumentation)
-- Understanding business-critical actions that MUST be tracked
-- Clarifying payload details that can't be inferred from visuals alone (e.g. is a price dynamic? is a banner configurable via CMS?)
-- Identifying edge cases (empty states, error states, loading states that need events)
-- Understanding the page hierarchy (is this a sub-page, a bottom sheet, or a full page?)
-
-Return JSON array only:
-[
-  {
-    "question_id": "q1",
-    "question": "<the question text>",
-    "type": "multiselect | single_select | text | yes_no",
-    "options": ["option1", "option2"] or null if type is text,
-    "component_ref": "<which component_name this question relates to, or 'general'>",
-    "why": "<one sentence on why this matters for instrumentation>"
-  }
-]"""
 
 
 def generate_questions(detected_components: list[dict]) -> list[dict]:
@@ -229,41 +192,6 @@ def _ensure_required_questions(questions: list[dict], component_names: list[str]
 
 
 # ---------- API call 3: Generate instrumentation events ----------
-
-INSTRUMENTATION_SYSTEM_PROMPT = """You are an expert analytics engineer. Generate a complete event instrumentation specification based on the detected UI components and the user's Q&A answers.
-
-For each event row, return JSON in this exact format:
-{
-  "story": "<UI section name, e.g. 'Doctor Consult Banner'>",
-  "name": "<event name, e.g. 'property_load', 'element_clicked', 'i_element_viewed', 'page_load'>",
-  "trigger": "<plain English description of when this fires>",
-  "event_specific_payload": "<multi-line string of key: value pairs with inline examples and angle-bracket descriptions>",
-  "common_payload": "<'Change' if common payload needs updating, 'No Change' if not>",
-  "event_status": "<'New' if new event, 'Exists' if existing, 'Exists - Update' if existing but needs changes>",
-  "aat_priority": "<P1 / P2 / P3>",
-  "notes": "<any important notes for the engineer>",
-  "metrics": "<what metric this event enables>"
-}
-
-Rules:
-- Use snake_case for all payload keys
-- event_specific_payload should follow this style:
-  element_unique_name: hp_doctor_consult_banner
-  item_type: services
-  source: <page containing the widget> (Eg: p_home)
-  destination: <destination page on click> (Eg: p_doctor_consult)
-  price: <discounted price shown> (Eg: 199)
-  element_cta: book_now/banner
-- For carousels/lists: always include item_rank, num_of_items, element_scroll_type, widget_vertical_rank
-- For banners: always include property_name or element_unique_name, item_name, item_type, widget_vertical_rank
-- For page loads: always include page_name, source_page_name, and boolean flags for all major widgets (has_X: 0/1)
-- Only include events for components NOT in the "should not be instrumented" list from Q&A
-- For components marked as "already instrumented, no change" — include a row with event_status = "Exists" and note "No changes needed"
-- Mark P1 for anything on the critical user journey (search, primary CTAs, page loads, new feature banners)
-- Mark P2 for supporting elements (secondary cards, navigation)
-- Mark P3 for edge cases and passive views
-
-Return a JSON array of these event objects. No prose, just JSON."""
 
 
 def generate_instrumentation(

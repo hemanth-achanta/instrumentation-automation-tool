@@ -1,0 +1,6 @@
+Compact mode (to avoid truncation):
+- Generate AT MOST 40 events total.
+- Prioritize: page_load, primary CTAs, navigation, critical widgets (forms, carousels/lists, banners).
+- **Grouping:** One row per **logical** `element_unique_name`; for carousels with per-card fires, describe “once per visible card” in **trigger** and use **item_name** / **item_id** / **item_rank** for instance—not extra `element_unique_name` values. **`item_type`** = vertical only; **`patient_id`** when diagnostics + patient-scoped.
+- Keep **story** as a snake_case feature key; separate **notes** (how/why) from **metrics** (what we measure).
+- Keep `trigger`, `event_specific_payload`, and `notes` as concise as possible while remaining clear.
