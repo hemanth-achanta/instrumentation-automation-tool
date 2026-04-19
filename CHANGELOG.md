@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-04-19 — 0-indexed ranks in prompts and page-based export filename
+
+### Updated
+- **Prompts** (`config/prompts/instrumentation*.txt`, `analyze*.txt`, `questions.txt`): Document that **`item_rank`**, **`widget_vertical_rank`**, and similar rank fields are **0-indexed** (first visible item = 0, not 1).
+- **`utils/excel_generator.py`**: Add **`sanitize_page_basename()`** for safe workbook/sheet metadata and filenames (strip invalid path/sheet characters; if the page name is empty/whitespace, use a timestamped `instrumentation_YYYYMMDD_HHMMSS` base so consecutive exports do not overwrite).
+- **`steps/step4_download.py`**: Download file is **`{page_name}.xlsx`** (sanitized routing/page label from Step 1), not `{page_name}_instrumentation.xlsx`.
+
+---
+
 ## 2026-04-19 — Active-only attributes from `events_schema.csv`
 
 ### Updated

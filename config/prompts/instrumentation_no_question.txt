@@ -6,7 +6,9 @@ Treat the output as a **draft** for the same spreadsheet columns the team uses i
 
 - **story**: snake_case **feature key** (repeat on every row). Use `suggested_story_key` from detected components when present; otherwise derive from screen name + feature (e.g. `health_insights_home`). **Not** the same as **`page_name`** (see below).
 - **name**: Only event names from the **allowed list in the user message** bundled with this request.
-- **trigger**: Clear firing condition; for lists, state **per row/card** vs once.
+- **trigger**: Clear firing condition; for lists, state **per row/card** vs **once for the section/widget**.
+
+  **List/carousel granularity — reason before you decide:** Weigh (1) whether **which entity** was seen/tapped matters (patient, SKU, offer, rank, test type); (2) whether downstream analytics will **filter, funnel, or segment** on **`item_id` / `item_name` / `item_rank`** in tools like **CleverTap** (per-entity funnels, cohorts, content/offering performance); (3) whether a **single section impression** answers the product question (module reach only). Prefer **per visible card/row** when row identity changes analysis; prefer **one section-level** fire when only block visibility matters. State your assumption in **notes** if unsure (P2/P3). Add a **short rationale** in **notes** when the grain is non-obvious.
 - **event_specific_payload**: Multi-line `key: value` template with `<placeholder> (Eg: …)`.
   - **`page_name`**: Use a **routing page code** style (`p_*` or org convention)—**do not** reuse the **story** string as `page_name`.
   - **`metric_str_N` / `val_str_N`**: Always use as **pairs** with the same N—**`metric_str_N`** labels what **`val_str_N`** captures. Use when you need payload fields beyond the fixed columns; you may use **`metric_str_2` / `val_str_2`**, **`metric_str_3` / `val_str_3`**, etc., for multiple auxiliary fields on one row.
@@ -15,11 +17,11 @@ Treat the output as a **draft** for the same spreadsheet columns the team uses i
   - **`item_type`**: **Reserved for business vertical** only—`diagnostics` | `pharma` | `consult` | `others`. Do not use for content/category (lab vs drug, organ name, etc.); use **`item_name`**, **`item_id`**, or **`metric_str_N` / `val_str_N`** instead.
   - **`patient_id`**: When vertical is **`diagnostics`** (infer from UI: labs, tests, patient-scoped flows) and the surface is patient-specific, include **`patient_id`** in the payload template.
   - **Widgets**: **`element_unique_name`** = **one PRD-level module**; for multiple similar items in the same section (list/carousel of the same pattern), **reuse** the same **`element_unique_name`** and differentiate with **`item_name`**, **`item_id`**, **`item_rank`**, etc.—do not mint a new **`element_unique_name`** per card/row unless they are truly separate instruments.
-  - **Multi-control sections**: If a single logical section/module has multiple clickable controls (header actions, card icon actions, row primary+secondary actions), keep the same `element_unique_name` for the section and create separate rows per action. Differentiate with `element_cta` (and `destination` / `item_*` context); do not create a new name per button.
-  - Interaction fields as needed: `element_unique_name`, `item_*`, `patient_id` (diagnostics + patient-scoped), `source`, `destination`, `element_cta`, ranks, paired **`metric_str_1` / `val_str_1`** (etc.).
+  - **Section vs buttons:** **`element_cta`** only on **`element_clicked`** for **buttons**. Each button uses its **own** `element_unique_name` **distinct from** the parent section (e.g. `section_view_all_btn`). Section/list/card taps: same section `element_unique_name` + `item_*` / `destination` — **no** `element_cta`.
+  - Interaction fields as needed: `element_unique_name`, `item_*`, `patient_id` (diagnostics + patient-scoped), `source`, `destination`, **`element_cta` (buttons only)**, **`item_rank` / `widget_vertical_rank` (0-indexed: first visible item = 0, not 1)**, paired **`metric_str_1` / `val_str_1`** (etc.).
 - **common_payload**: Default **No Change** unless you have strong evidence the shared block changes.
 - **event_status**: Prefer **`existing`** when the screen is an **incremental** page in an established app area (Health Insights, PDP, etc.) and there is no “NEW” launch badge—reserve **`New`** for clearly net-new surfaces or widgets. Say the assumption in **notes** if unsure.
-- **notes** vs **metrics**: **notes** = what/why for implementers; **metrics** = analytics outcomes (comma-separated).
+- **notes** vs **metrics**: **notes** = what/why for implementers (include **why** per-entity vs section-level when lists are involved, if non-obvious); **metrics** = analytics outcomes (comma-separated).
 
 For each event row, return JSON in this exact format:
 {

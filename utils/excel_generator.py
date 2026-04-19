@@ -3,6 +3,8 @@ Excel generation using openpyxl — produces the instrumentation .xlsx file
 matching the company's exact format.
 """
 import io
+import re
+from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import (
     Alignment,
@@ -60,6 +62,23 @@ HEADERS = [
     "Metrics",
     "Can Be Tracked",
 ]
+
+# Windows/macOS reserved characters; also strip Excel-invalid sheet name chars like [ ].
+_INVALID_BASENAME_CHARS = re.compile(r'[<>:"/\\|?*\[\]\x00-\x1f]')
+
+
+def sanitize_page_basename(raw: str | None) -> str:
+    """
+    Safe base name for download filenames and workbook metadata.
+    If empty after trim, use a timestamped fallback so back-to-back exports do not collide.
+    """
+    if raw is None:
+        raw = ""
+    s = _INVALID_BASENAME_CHARS.sub("_", str(raw).strip())
+    s = s.strip(" .")
+    if not s:
+        return f"instrumentation_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    return s[:200]
 
 
 def generate_excel(

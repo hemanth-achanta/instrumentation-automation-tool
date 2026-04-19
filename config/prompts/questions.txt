@@ -6,14 +6,14 @@ Generate between 5-10 questions. Each question should be specific to the compone
 Focus on:
 - **Story key**: Confirm the snake_case **story** identifier (one per feature/surface) so rows group correctly in Excel.
 - **New vs existing**: Which modules reuse **existing** events/payloads vs need **New** or **Exists - Update** (avoid duplicate work).
-- **Per-item vs once**: For lists/carousels, should **i_element_viewed** / **element_clicked** fire once per visible row/card, or only once for the whole widget?
+- **Per-item vs once (analytics-driven)**: For each list/carousel, should **i_element_viewed** / **element_clicked** fire once per visible row/card, or only once for the whole widget? Tie the question to **CleverTap (or similar) usage**: e.g. “Do we need breakdowns or funnels **per entity** (item_id / **0-indexed** rank—first item = 0), or only **module reach**?” Ask component-specific variants when the UI mixes both patterns.
 - **Page and routing constants**: Expected `page_name` / `source` / `destination` values (e.g. p_health_insights_home → p_patient_landing) if known from product context.
 - **Payloads that visuals cannot show**: dynamic IDs, CMS-driven labels, structured lists encoded as paired **metric_str_*** / **val_str_*** (same index: label + value; add pairs 2, 3, … when needed), bottom-sheet **source_property_name**, etc.
 - **Business vertical (`item_type`)**: Confirm **`item_type`** per screen or journey—allowed values only: **`diagnostics`**, **`pharma`**, **`consult`**, **`others`**. Clarify anything that might be mistaken for `item_type` but belongs in **`item_name`** / **`item_id`** / metrics pairs (e.g. lab type, drug class).
 - **Patient identity (diagnostics)**: When vertical is **diagnostics**, confirm **`patient_id`** is required on which events (page_load, list rows, detail, uploads) and whether any surface is not patient-scoped.
-- **Section-level grouping (default)**: For controls/items within the same logical **section/module**, default to **one** **element_unique_name** and differentiate with **`element_cta`** and context (`destination`, `item_name`/`item_id`/`item_rank`)—only split into separate `element_unique_name` values when product/engineering confirms they are distinct PRD modules.
-- **Repeated UI pattern**: For similar items in the same section (lists/carousels), confirm **one** **element_unique_name** with differentiation via **item_name** / **item_id** / **item_rank** (vs separate instruments)—align with engineering.
-- **Click intent**: Multiple CTAs inside one section/module should be separate rows differentiated by **`element_cta`** (preferred) — confirm if any CTA truly needs its own module id.
+- **Section vs buttons**: **Section/list body** uses **one** **`element_unique_name`** for the module; **each button** should have its **own** **`element_unique_name`** (not the section’s). Confirm naming. **`element_cta`** is **only** for **button** clicks—card/row taps use **`item_*`** / **`destination`**.
+- **Repeated UI pattern**: For similar items in the same section (lists/carousels), confirm **one** **element_unique_name** with differentiation via **item_name** / **item_id** / **item_rank** (always **0-indexed**; first = 0) (vs separate instruments)—align with engineering.
+- **Click intent**: For **buttons**, separate rows with **distinct** **`element_unique_name`** per button + **`element_cta`**. For **non-button** taps, confirm **`item_*`** / **`destination`** only.
 - **Edge states**: empty/error/loading that need events; repeat **page_load** on every return vs first entry.
 - **Priority**: What is P1 on the critical path vs P2/P3 for the first release?
 

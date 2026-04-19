@@ -3,7 +3,7 @@ Step 4 — Generate & Download
 Produces the final .xlsx and offers it for download.
 """
 import streamlit as st
-from utils.excel_generator import generate_excel
+from utils.excel_generator import generate_excel, sanitize_page_basename
 from utils.instrumentation_post import ensure_page_load_ids
 
 
@@ -13,7 +13,8 @@ def render():
     rows = st.session_state.get("final_rows", [])
     ensure_page_load_ids(rows)
     st.session_state.final_rows = rows
-    page_name = st.session_state.get("page_name", "instrumentation")
+    raw_page = st.session_state.get("page_name") or ""
+    page_name = sanitize_page_basename(raw_page)
     figma_url = st.session_state.get("figma_url", "")
 
     if not rows:
@@ -70,7 +71,7 @@ def render():
     st.divider()
 
     # Download button
-    file_name = f"{page_name}_instrumentation.xlsx" if page_name else "instrumentation.xlsx"
+    file_name = f"{page_name}.xlsx"
     excel_bytes = excel_buffer.getvalue()
     st.download_button(
         label="⬇️ Download Instrumentation Excel",
