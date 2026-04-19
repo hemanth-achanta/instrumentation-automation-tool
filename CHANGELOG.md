@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-04-19 — Active-only attributes from `events_schema.csv`
+
+### Updated
+- `utils/events_config.py`: Allowed attributes for events listed in `resources/events_config.json` are now taken only from CSV rows where the **property-level** `Status` column is `Active` (the export has separate event-level and property-level `Status` columns; filtering uses the one after `Property name`). Discarded or inactive properties are excluded. NUL bytes embedded in some lines of `events_schema.csv` are stripped during read so the file parses reliably.
+
+---
+
 ## 2026-04-19 — `page_load_id` enforcement and shared instrumentation post-processing
 
 ### Added
