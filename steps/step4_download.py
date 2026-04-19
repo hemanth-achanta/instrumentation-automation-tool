@@ -4,12 +4,15 @@ Produces the final .xlsx and offers it for download.
 """
 import streamlit as st
 from utils.excel_generator import generate_excel
+from utils.instrumentation_post import ensure_page_load_ids
 
 
 def render():
     st.header("🎉 Download Instrumentation")
 
     rows = st.session_state.get("final_rows", [])
+    ensure_page_load_ids(rows)
+    st.session_state.final_rows = rows
     page_name = st.session_state.get("page_name", "instrumentation")
     figma_url = st.session_state.get("figma_url", "")
 

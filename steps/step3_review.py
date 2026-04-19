@@ -5,6 +5,7 @@ Generates the full event spec with GPT-4o, then shows an editable table.
 import streamlit as st
 import pandas as pd
 from utils.claude_client import generate_instrumentation
+from utils.instrumentation_post import ensure_page_load_ids
 
 
 EVENT_NAME_OPTIONS = [
@@ -148,8 +149,9 @@ def render():
         key="instrumentation_editor",
     )
 
-    # Sync edits back to session state
-    st.session_state.final_rows = edited_df.to_dict("records")
+    # Sync edits back to session state (page_load rows must include page_load_id)
+    records = edited_df.to_dict("records")
+    st.session_state.final_rows = ensure_page_load_ids(records)
 
     # Feedback + regenerate section (below table, above navigation)
     st.divider()

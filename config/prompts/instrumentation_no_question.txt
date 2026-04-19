@@ -9,9 +9,9 @@ Treat the output as a **draft** for the same spreadsheet columns the team uses i
 - **trigger**: Clear firing condition; for lists, state **per row/card** vs once.
 - **event_specific_payload**: Multi-line `key: value` template with `<placeholder> (Eg: …)`.
   - **`page_name`**: Use a **routing page code** style (`p_*` or org convention)—**do not** reuse the **story** string as `page_name`.
-  - **`page_load_id`**: Omit unless you have a concrete reason to correlate events to one load (most drafts skip it).
   - **`metric_str_N` / `val_str_N`**: Always use as **pairs** with the same N—**`metric_str_N`** labels what **`val_str_N`** captures. Use when you need payload fields beyond the fixed columns; you may use **`metric_str_2` / `val_str_2`**, **`metric_str_3` / `val_str_3`**, etc., for multiple auxiliary fields on one row.
-  - **page_load**: Keep to **surface + subject + data-availability** fields; avoid dumping every widget’s metrics here—use widget rows + **`metric_str_1` / `val_str_1`** (and further pairs if needed) for rich detail.
+  - **`page_load` rows only**: Include **`page_load_id`** (unique id per qualified page load; placeholder + example UUID). **Do not** put **`page_load_id`** on any row where **`name`** is not **`page_load`**.
+  - **page_load** event template: Keep to **surface + subject + data-availability** fields; avoid dumping every widget’s metrics here—use widget rows + **`metric_str_1` / `val_str_1`** (and further pairs if needed) for rich detail.
   - **`item_type`**: **Reserved for business vertical** only—`diagnostics` | `pharma` | `consult` | `others`. Do not use for content/category (lab vs drug, organ name, etc.); use **`item_name`**, **`item_id`**, or **`metric_str_N` / `val_str_N`** instead.
   - **`patient_id`**: When vertical is **`diagnostics`** (infer from UI: labs, tests, patient-scoped flows) and the surface is patient-specific, include **`patient_id`** in the payload template.
   - **Widgets**: **`element_unique_name`** = **one PRD-level module**; for multiple similar items in the same section (list/carousel of the same pattern), **reuse** the same **`element_unique_name`** and differentiate with **`item_name`**, **`item_id`**, **`item_rank`**, etc.—do not mint a new **`element_unique_name`** per card/row unless they are truly separate instruments.
@@ -35,6 +35,7 @@ For each event row, return JSON in this exact format:
 }
 
 Rules:
+- **`page_load_id`** belongs **only** in **`event_specific_payload`** when **`name`** is **`page_load`**; omit it for all other event types.
 - Use snake_case for payload keys in the template.
 - Infer what to skip (purely decorative chrome) from the UI; when unsure, include the event with a clarifying **notes** entry.
 - **Do not invent** modules not visible in screenshots or the detected-components list (no speculative “consult doctor” or “key findings” rows unless shown).

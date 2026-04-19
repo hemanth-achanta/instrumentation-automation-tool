@@ -15,6 +15,7 @@ from utils.prompts import (
     QUESTIONS_SYSTEM_PROMPT,
     INSTRUMENTATION_SYSTEM_PROMPT,
 )
+from utils.instrumentation_post import post_process_instrumentation_rows
 
 load_dotenv()
 
@@ -234,4 +235,7 @@ def generate_instrumentation(
     )
 
     raw = response.choices[0].message.content
-    return _parse_json_response(raw)
+    rows = _parse_json_response(raw)
+    if not isinstance(rows, list):
+        return []
+    return post_process_instrumentation_rows(rows)

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-04-19 — `page_load_id` enforcement and shared instrumentation post-processing
+
+### Added
+- `utils/instrumentation_post.py`: central `post_process_instrumentation_rows` (moved from `claude_client`), plus `ensure_page_load_ids` so `page_load_id` appears only on `page_load` rows and is injected or stripped as needed.
+
+### Updated
+- `config/prompts/instrumentation.txt` and `config/prompts/instrumentation_no_question.txt`: clarify that `page_load_id` is required only on `page_load` events, never on `element_clicked`, `i_element_viewed`, etc.
+- `utils/events_config.py`: always allow `page_load_id` as an attribute for `page_load` (even if absent from CSV-derived schema).
+- `utils/claude_client.py` and `utils/openai_client.py`: route instrumentation output through `post_process_instrumentation_rows`; OpenAI path also guards against non-list JSON.
+- `steps/step3_review.py` and `steps/step4_download.py`: run `ensure_page_load_ids` when syncing the editor and before download so manual edits stay valid.
+
+---
+
 ## 2026-04-18 - Changes from `641d081` to `746a4f2`
 
 This log captures the major updates introduced in the latest workflow revision.

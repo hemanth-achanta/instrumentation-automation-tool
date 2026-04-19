@@ -11,6 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Set
 
+# Attributes always allowed for specific events (even if missing from CSV schema rows).
+_EXTRA_ALLOWED_ATTRS: Dict[str, Set[str]] = {
+    "page_load": {"page_load_id"},
+}
+
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 RESOURCES_DIR = BASE_DIR / "resources"
@@ -101,7 +106,8 @@ def get_allowed_attributes(event_name: str) -> Set[str]:
     """Return the set of allowed attribute names for a given event name."""
     _init()
     schema = _event_schemas.get(event_name)
-    return set(schema.attributes) if schema else set()
+    base = set(schema.attributes) if schema else set()
+    return base | _EXTRA_ALLOWED_ATTRS.get(event_name, set())
 
 
 def get_compact_schema_summary() -> str:

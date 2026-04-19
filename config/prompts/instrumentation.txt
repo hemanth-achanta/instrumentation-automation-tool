@@ -23,7 +23,7 @@ Your output is a **first pass** for a spreadsheet. The user will refine rows usi
 
   **page_load** template (include keys Q&A or examples actually need):
   - Typical: `page_name`, `page_item_name`, `item_id`, `item_type` (vertical: `diagnostics` | `pharma` | `consult` | `others`), `patient_id` when diagnostics + patient-scoped, `source_page_name`, `pageData`, and other context columns—when the PRD tracks *surface + subject + data state*.
-  - **`page_load_id`**: Include **only** if Q&A or org examples require correlating multiple events to one load. **Do not** add it by default.
+  - **`page_load_id`**: **Required only on `page_load` rows** (never on `element_clicked`, `i_element_viewed`, `property_load`, or other event types). Use a placeholder describing a unique id generated per qualified page load (UUID or app session correlation id). Downstream tooling may append if missing on `page_load` only.
   - **Do not** stuff every widget’s metrics into **page_load** unless the PRD asks for a single page snapshot. Put rich breakdowns on the **widget’s** `i_element_viewed` / `element_clicked` rows (often **`metric_str_1` / `val_str_1`**, and additional pairs if needed).
 
   **i_element_viewed / element_clicked** template:
@@ -61,6 +61,7 @@ For each event row, return JSON in this exact format:
 }
 
 Rules:
+- **`page_load_id`** appears **only** on rows where **`name`** is **`page_load`**; never add it to **`element_clicked`**, **`i_element_viewed`**, **`property_load`**, or other event types.
 - Prefer **page_load** for full-screen/tab surfaces; use **property_load** only when the allowed list includes it and the product uses that name for the same pattern.
 - **Faithfulness:** Emit events that map to **visible or Q&A-described** components. Do **not** invent extra modules (e.g. “key findings”, “consult nephrologist”, generic “parameter row”) just to fill the sheet—if it is not in the UI or Q&A, omit it or note the assumption in **notes** with **P3**.
 - For scrollable lists/carousels where each row matters: include **num_of_items**, **item_rank**, **element_scroll_type** when useful; add **widget_vertical_rank** only when vertical placement on the page is part of the question (not mandatory on every row).

@@ -25,9 +25,9 @@ from dotenv import load_dotenv
 from json_repair import repair_json
 from utils.events_config import (
     get_allowed_event_names,
-    get_allowed_attributes,
     get_compact_schema_summary,
 )
+from utils.instrumentation_post import post_process_instrumentation_rows
 from utils.prompts import (
     ANALYZE_SYSTEM_PROMPT,
     ANALYZE_SYSTEM_PROMPT_COMPACT,
@@ -540,64 +540,7 @@ def generate_instrumentation(
             rows = _parse_json_with_llm_repair(
                 client, raw, e, _INSTRUMENTATION_REPAIR_HINT
             )
-    return _post_process_events(rows)
-
-
-def _post_process_events(rows: list[dict]) -> list[dict]:
-    """
-    Filter events to allowed names and enforce attribute constraints.
-    Any attribute not present in the CSV-derived schema is moved into
-    event_props_json so that no new top-level attributes are introduced.
-    """
-    allowed_events = set(get_allowed_event_names())
-    processed: list[dict] = []
-
-    for row in rows:
-        name = row.get("name")
-        if allowed_events and name not in allowed_events:
-            # Drop events not in config
-            continue
-
-        event_name = name or ""
-        allowed_attrs = get_allowed_attributes(event_name)
-        payload = (row.get("event_specific_payload") or "").strip()
-
-        if not payload:
-            processed.append(row)
-            continue
-
-        lines = [ln for ln in payload.splitlines() if ln.strip()]
-        allowed_lines: list[str] = []
-        extra_pairs: list[tuple[str, str]] = []
-
-        for ln in lines:
-            if ":" not in ln:
-                allowed_lines.append(ln)
-                continue
-            key, val = ln.split(":", 1)
-            k = key.strip()
-            v = val.strip()
-            if k in allowed_attrs:
-                allowed_lines.append(f"{k}: {v}")
-            else:
-                extra_pairs.append((k, v))
-
-        # Build final payload:
-        # - Only allowed attributes stay as top-level lines.
-        # - All non-schema attributes are moved into event_props_json.
-        final_lines: list[str] = []
-        if allowed_lines:
-            final_lines.extend(allowed_lines)
-
-        if extra_pairs:
-            extra_dict = {k: v for k, v in extra_pairs}
-            final_lines.append(f"event_props_json: {json.dumps(extra_dict)}")
-
-        row["event_specific_payload"] = "\n".join(final_lines)
-
-        processed.append(row)
-
-    return processed
+    return post_process_instrumentation_rows(rows)
 
 
 def _maybe_store_last_raw(raw: str) -> None:
