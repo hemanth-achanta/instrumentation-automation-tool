@@ -2,6 +2,7 @@ Compact mode (very important to avoid truncation):
 - Return AT MOST 35 components total across all screenshots.
 - Prioritize: page_load, primary CTAs, navigation, banners, forms/inputs, key list/carousel widgets.
 - **Grouping:** Merge sub-parts that belong to **one PRD widget** (e.g. one therapies strip) into a single component. **Do not** merge **separate cards** that the spec would instrument **per card** (e.g. horizontal organ cards)—keep those as separate components with the same `suggested_element_unique_name` and card context in notes (`item_name` / id in notes if compact).
+- **Section-level grouping:** For multiple controls/actions in the same logical section/module (e.g. widget header actions, card icon actions), keep the same `suggested_element_unique_name` and rely on `element_cta` / destination / item context in notes—do not create a new name per button.
 - **`item_type`** in outputs is only for vertical (`diagnostics` | `pharma` | `consult` | `others`); flag diagnostics + patient UI → note **`patient_id`** in **notes** when relevant.
 - If multiple similar inputs exist, group them into one component (e.g., "Patient Details Form" instead of each field).
 - Still include `suggested_story_key` on every object (short snake_case key).

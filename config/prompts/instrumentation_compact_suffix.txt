@@ -2,5 +2,6 @@ Compact mode (to avoid truncation):
 - Generate AT MOST 40 events total.
 - Prioritize: page_load, primary CTAs, navigation, critical widgets (forms, carousels/lists, banners).
 - **Grouping:** Collapse duplicate granularity only when it is **one widget** in the PRD (one `element_unique_name`, combined payload). **Do not** collapse **per-card** or **per-row** requirements—use one event **type** with **item_name** / **item_id** / **item_rank** and repeated triggers in **trigger** and **notes**, not a new `element_unique_name` per card. **`item_type`** = vertical only (`diagnostics` | `pharma` | `consult` | `others`); include **`patient_id`** on diagnostics patient-scoped rows.
+- **Multi-control sections:** Multiple controls/actions in one logical section/module should share the same `element_unique_name`; distinguish actions via `element_cta` (and item/destination context), not new names.
 - Keep the same column meanings: **story** = snake_case key; **metrics** = analysis outcomes; **notes** = implementation context.
 - Keep `trigger`, `event_specific_payload`, and `notes` as concise as possible while remaining clear.

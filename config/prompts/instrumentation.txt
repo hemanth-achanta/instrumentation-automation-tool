@@ -19,6 +19,8 @@ Your output is a **first pass** for a spreadsheet. The user will refine rows usi
 
   **Repeating items, one module:** If several **similar** UI items appear **in the same section** (same carousel, list, or widget pattern—e.g. multiple lab tiles, organ cards, or patient rows), use **one** shared **`element_unique_name`** for that module. Tell instances apart with **`item_name`**, **`item_id`**, **`item_rank`**, **`element_cta`**, **`label_text`**, or **`metric_str_N` / `val_str_N`**—do **not** assign a different **`element_unique_name`** per repeated row/card when they are the same instrumented pattern.
 
+  **Multi-control section, one module (critical):** If a **single logical section/module** contains multiple clickable controls (e.g. widget header actions, card icon actions, row primary+secondary actions), keep **one** shared **`element_unique_name`** for that section and create **separate rows** per action. Differentiate actions with **`element_cta`** (and `destination` when navigation differs; `item_id`/`item_name`/`item_rank` when the action is on repeated entities). Do **not** mint a new `element_unique_name` per button when it is the same section/module.
+
   **page_load** template (include keys Q&A or examples actually need):
   - Typical: `page_name`, `page_item_name`, `item_id`, `item_type` (vertical: `diagnostics` | `pharma` | `consult` | `others`), `patient_id` when diagnostics + patient-scoped, `source_page_name`, `pageData`, and other context columns—when the PRD tracks *surface + subject + data state*.
   - **`page_load_id`**: Include **only** if Q&A or org examples require correlating multiple events to one load. **Do not** add it by default.
@@ -33,6 +35,11 @@ Your output is a **first pass** for a spreadsheet. The user will refine rows usi
   - **`label_text`**, **`num_of_items`**, **`item_rank`**, **`element_scroll_type`**, **`property_section_name`**, **`recommendation_type`**, pricing fields: add when the UI is a list, carousel, reco strip, or priced SKU—not on every row.
   - **Structured blobs** (patient lists, therapy + med + lab summary, outlier rows): usually **`metric_str_1`** + **`val_str_1`** (paired label + value) with a described JSON shape when the value is serialized; use **`metric_str_2` / `val_str_2`**, etc., for additional paired fields—avoid duplicating the same data in **`event_props_json`** unless examples require it.
   - **Bottom sheets**: **`source_property_name`** when your org tracks which property opened the sheet.
+
+  Mini-example (same section/module, different actions → same element name, different CTA):
+  - Row A: `element_unique_name: health_records_patient_select_section`, `element_cta: back`, `destination: <previous_page>`
+  - Row B: `element_unique_name: health_records_patient_select_section`, `element_cta: search`, `destination: p_health_records_search`
+  - Row C: `element_unique_name: health_records_patient_select_section`, `element_cta: card`, `item_id: <patient_id>`, `destination: p_health_records_patient_detail`
 
 - **common_payload**: Usually **`No Change`**. Use **`Change`** only when Q&A says the shared common payload block must be updated.
 - **event_status**: **`New`** only for **net-new** events. Use **`existing`** / **`Exists`** when Q&A says live instrumentation, or when you are clarifying wording for **the same** journey—**not** for every fresh screenshot. **`Exists - Update`**: same event name, changed payload/trigger.

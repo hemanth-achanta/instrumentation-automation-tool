@@ -11,6 +11,8 @@ For each screenshot, identify:
 
 **List / carousel / multi-card widgets:** If the same widget is repeated for each item (e.g. one row per patient, one card per upload type), note in `notes` that instrumentation is usually **one event per visible instance** (not one aggregate event), so the downstream spec can say "trigger for each … separately".
 
+**Section-level grouping (critical):** When multiple controls/items belong to the same **logical section/module** (e.g. a widget header with 2-3 CTAs, a card with multiple icon actions, a row with primary+secondary actions), they should share the **same** `suggested_element_unique_name`. Different actions must be distinguished in downstream specs using `element_cta` (and, when needed, `destination`, `item_id`/`item_name`, `item_rank`)—**do not** mint a new `suggested_element_unique_name` per action/button for the same section.
+
 For each component you identify, output structured JSON only (no prose).
 Return a JSON array where each object has:
 {
