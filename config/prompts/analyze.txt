@@ -11,7 +11,7 @@ For each screenshot, identify:
 
 **List / carousel / multi-card widgets:** When the same pattern repeats per item (e.g. one row per patient, one card per member), use `notes` to flag the **granularity tradeoff** for downstream specs: does analytics need **row-level** facts (filtering/funnels/cohorts on `item_id` or **0-indexed** rank—first item = 0—in tools like CleverTap) or is **section-level** visibility enough? Recommend **per visible instance** when entities differ in business meaning or attribution; recommend **one section-level** impression only when the question is strictly “did the user see this block.” Do not assume one answer for every list—call out what makes this screen different.
 
-**Section vs buttons (critical):** The **section/module** (list body, widget container, repeated card pattern) gets **one** `suggested_element_unique_name` for impressions and for **non-button** taps (whole row/card/tile) differentiated by **`item_id` / `item_name` / `item_rank`** and **`destination`**. **Each explicit button** (text/icon CTA) gets its **own** `suggested_element_unique_name` **different from** the section’s name (e.g. `…_view_all_btn`, `…_share_btn`). Downstream **`element_cta`** applies **only** to **button** `element_clicked` rows—not to card/list taps.
+**Section vs buttons (critical):** The **section/module** (list body, widget container, repeated card pattern) gets **one** `suggested_element_unique_name` for impressions and for **non-button** taps (whole row/card/tile) differentiated by **`item_id` / `item_name` / `item_rank`** and **`destination`**. **Each explicit button** (text/icon CTA) gets its **own** `suggested_element_unique_name` **different from** the section’s name (e.g. `…_view_all_btn`, `…_share_btn`). Downstream **every `element_clicked` row** should carry a simple **`element_cta`** action word; for card/list taps this is usually `view`, `select`, `expand`, etc.
 
 For each component you identify, output structured JSON only (no prose).
 Return a JSON array where each object has:
@@ -28,12 +28,14 @@ Return a JSON array where each object has:
 
 **Naming discipline:** **`suggested_story_key`** (feature bucket) is separate from **`suggested_element_unique_name`** (widget/module id). If the screen shows one composite module (e.g. therapies + med count + labs in one block), output **one** component with **one** `suggested_element_unique_name`, not three. Split into multiple components when the UI shows **clearly separate** instruments (e.g. distinct reco cards vs one combined strip). **Also output a separate component per explicit button** (each with its **own** `suggested_element_unique_name`, different from the **section/list** body)—see “Section vs buttons” above.
 
-**Vertical vs repeating rows:** Downstream payloads use **`item_type`** only for **business vertical** (`diagnostics` | `pharma` | `consult` | `others`)—not for item categories. For **several similar items in one section** (same list/carousel pattern), call out in **`notes`** that they should share one **`element_unique_name`** and be distinguished by **`item_name`** / **`item_id`** / **0-indexed** rank (not many different element names). If the screen is **diagnostics** and patient-scoped, note that **`patient_id`** should be captured in instrumentation.
+**Vertical vs repeating rows:** Downstream payloads use **`item_type`** only for **business vertical** (`diagnostics` | `pharma` | `consult` | `others`)—not for item categories. For **several similar items in one section** (same list/carousel pattern), call out in **`notes`** that they should share one **`element_unique_name`** and be distinguished by **`item_name`** / **`item_id`** / **0-indexed** rank (not many different element names). If the screen is **diagnostics** and patient-scoped, note that **`patient_id`** should be captured in instrumentation. Never suggest `event_props_json`; note when `custom_column1_name` / `custom_column1_value`, `property_section_name`, or `item_sub_type` look like better fits.
 
 Guidance for `suggested_events` (pick what applies):
 - **page_load** (or **property_load** if the codebase convention uses that for the same page-surface event): first paint / each qualified load of a screen.
 - **i_element_viewed**: impressions when a module or list item enters view (often **per row/card**).
 - **element_clicked**: taps on CTAs, cards, nav, toggles, etc.
+
+Skip obviously noisy passive instrumentation in your recommendations unless the UI strongly suggests analytical value: static strips/messages, tab-strip impressions, button impressions, follow-up strip views, and per-row impressions for non-clickable tables.
 
 Output requirements (critical):
 - Output MUST be valid JSON (RFC 8259). Use double quotes for all keys/strings.

@@ -2,6 +2,9 @@ Compact mode (to avoid truncation):
 - Generate AT MOST 40 events total.
 - Prioritize: page_load, primary CTAs, navigation, critical widgets (forms, carousels/lists, banners).
 - **Grouping:** One row per **logical** `element_unique_name`; for carousels with per-card fires, describe “once per visible card” in **trigger** and use **item_name** / **item_id** / **item_rank** (0-indexed: first = 0) for instance—not extra `element_unique_name` values. **`item_type`** = vertical only; **`patient_id`** when diagnostics + patient-scoped.
-- **Buttons vs section:** Buttons: distinct `element_unique_name` + `element_cta`. Section/list taps: section `element_unique_name` + `item_*` / `destination`; no `element_cta`.
+- **Clicks:** Every `element_clicked` row must include `element_cta` with a simple action word. Buttons use distinct `element_unique_name`; section/list taps keep the section `element_unique_name` plus `item_*` / `destination`.
 - Keep **story** as a snake_case feature key; separate **notes** (how/why, including one phrase on per-row vs section grain when relevant) from **metrics** (what we measure).
+- Never use `event_props_json`. Prefer `custom_column1_name` / `custom_column1_value`, `item_id` / `item_name`, `property_section_name`, `item_sub_type`, and paired `metric_str_N` / `val_str_N`.
+- Escape hatch for ambiguous fields: if unsure which first-class field to use, add `additional_cols: <json_object>` as a single line inside `event_specific_payload`.
+- Skip noisy passive views unless clearly required: static strips/messages, tab-strip impressions, button impressions, follow-up strip views, section impressions for shortcut/navigation modules, promo-widget impressions when click-only is enough, and per-row impressions for non-clickable tables.
 - Keep `trigger`, `event_specific_payload`, and `notes` as concise as possible while remaining clear.

@@ -10,6 +10,10 @@ from typing import Any
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from utils.events_config import (
+    get_allowed_event_names,
+    get_compact_schema_summary,
+)
 from utils.prompts import (
     ANALYZE_SYSTEM_PROMPT,
     QUESTIONS_SYSTEM_PROMPT,
@@ -213,6 +217,9 @@ def generate_instrumentation(
         qa_summary_lines.append(f"Q: {q['question']}\nA: {answer}")
     qa_summary = "\n\n".join(qa_summary_lines)
 
+    allowed_events = get_allowed_event_names()
+    schema_summary = get_compact_schema_summary()
+
     user_content = _build_image_content(images)
     user_content.append({
         "type": "text",
@@ -220,7 +227,13 @@ def generate_instrumentation(
             f"Page name: {page_name}\n\n"
             f"Detected components:\n{json.dumps(detected_components, indent=2)}\n\n"
             f"Q&A Answers:\n{qa_summary}\n\n"
-            "Generate the complete instrumentation specification as a JSON array."
+            "You must only generate events with `name` in this list: "
+            + ", ".join(allowed_events)
+            + "\n\nHere is the allowed attribute schema per event "
+            "(do not invent new top-level attributes):\n"
+            + schema_summary
+            + "\n\nGenerate the complete instrumentation specification as a JSON array "
+            "following all rules."
         ),
     })
 

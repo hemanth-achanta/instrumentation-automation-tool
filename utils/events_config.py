@@ -17,7 +17,12 @@ from typing import Dict, List, Set
 
 # Attributes always allowed for specific events (even if missing from CSV schema rows).
 _EXTRA_ALLOWED_ATTRS: Dict[str, Set[str]] = {
-    "page_load": {"page_load_id"},
+    # Always allow an escape hatch for ambiguous/non-schema fields.
+    # Value should be a JSON object encoded as a string in the payload.
+    "element_clicked": {"additional_cols"},
+    "i_element_viewed": {"additional_cols"},
+    "page_load": {"page_load_id", "additional_cols"},
+    "property_load": {"additional_cols"},
 }
 
 
@@ -152,7 +157,9 @@ def get_compact_schema_summary() -> str:
     for name in _allowed_events:
         attrs = sorted(_event_schemas.get(name, EventSchema(name, set())).attributes)
         if not attrs:
-            lines.append(f"{name}: (no predefined attributes; use event_props_json if needed)")
+            lines.append(
+                f"{name}: (no predefined attributes; keep payload flat and do not use event_props_json)"
+            )
         else:
             joined = ", ".join(attrs)
             lines.append(f"{name}: {joined}")

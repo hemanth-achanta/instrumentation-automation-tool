@@ -2,8 +2,10 @@ Compact mode (very important to avoid truncation):
 - Return AT MOST 35 components total across all screenshots.
 - Prioritize: page_load, primary CTAs, navigation, banners, forms/inputs, key list/carousel widgets.
 - **Grouping:** Merge sub-parts that belong to **one PRD widget** (e.g. one therapies strip) into a single component. **Do not** merge **separate cards** that the spec would instrument **per card** (e.g. horizontal organ cards)—keep those as separate components with the same `suggested_element_unique_name` and card context in notes (`item_name` / id in notes if compact). In **notes**, one phrase if needed: per-row vs section-level **impression** depends on whether entity-level breakdowns matter for analytics.
-- **Buttons vs section:** Section/module body: one `suggested_element_unique_name`. Each **button**: its **own** name (≠ section). Notes: `element_cta` downstream = buttons only; card taps = `item_*` / destination. Any **rank** in payloads is **0-indexed** (first = 0).
+- **Buttons vs section:** Section/module body: one `suggested_element_unique_name`. Each **button**: its **own** name (≠ section). Notes: every `element_clicked` should carry a simple `element_cta`; card taps still use `item_*` / destination. Any **rank** in payloads is **0-indexed** (first = 0).
 - **`item_type`** in outputs is only for vertical (`diagnostics` | `pharma` | `consult` | `others`); flag diagnostics + patient UI → note **`patient_id`** in **notes** when relevant.
+- Do not suggest `event_props_json`; prefer notes that imply `custom_column1_name` / `custom_column1_value`, `property_section_name`, or `item_sub_type`.
+- Skip noisy passive views unless clearly needed: static strips/messages, tab-strip impressions, button impressions, follow-up strip views, and per-row impressions for non-clickable tables.
 - If multiple similar inputs exist, group them into one component (e.g., "Patient Details Form" instead of each field).
 - Still include `suggested_story_key` on every object (short snake_case key).
 - Keep "notes" under 120 characters.
